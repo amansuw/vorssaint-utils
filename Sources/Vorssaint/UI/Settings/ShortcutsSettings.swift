@@ -33,6 +33,7 @@ struct ShortcutsSettings: View {
         FeatureGroup.allCases.filter { group in
             availableRoles.contains { $0.group == group }
                 || (group == .windowsDock && AppFeature.windowLayout.isAvailable)
+                || (group == AppFeature.macros.group && AppFeature.macros.isAvailable)
         }
     }
 
@@ -87,6 +88,8 @@ struct ShortcutsSettings: View {
             if feature == .windowLayout {
                 return group == .windowsDock && feature.isAvailable
             }
+            // Macros keep one shortcut per macro instead of a role.
+            if feature == .macros { return group == feature.group && feature.isAvailable }
             return availableRoles.contains { $0.feature == feature && $0.group == group }
         }
     }
@@ -118,6 +121,8 @@ struct ShortcutsSettings: View {
             : roles.count
         if feature == .radialMenu {
             RadialMenuShortcutsRow(text: text)
+        } else if feature == .macros {
+            MacroShortcutsRow(text: text)
         } else if count > 1 {
             featureHeader(feature, roles: roles, count: count, in: group)
             if expandedFeatures[group, default: []].contains(feature) {
@@ -337,6 +342,38 @@ private struct RadialMenuShortcutsRow: View {
     }
 }
 
+/// Each macro carries its own combination, and what it does belongs with it,
+/// so the row lists what the macros answer to and leaves the change to the
+/// Macros page.
+private struct MacroShortcutsRow: View {
+    @ObservedObject private var l10n = L10n.shared
+    let text: ShortcutSettingsStrings
+
+    var body: some View {
+        let feature = AppFeature.macros
+        let shortcuts = MacroSupport.triggers()
+        HStack(alignment: .top, spacing: 8) {
+            ShortcutRowLabel(title: FeatureStrings.macros(l10n.language).pageTitle,
+                             symbolName: feature.symbolName,
+                             contextLabel: nil,
+                             statusText: shortcuts.isEmpty ? text.inactive : text.active,
+                             statusIsActive: !shortcuts.isEmpty)
+            Spacer()
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(shortcuts.isEmpty
+                     ? l10n.s.shortcutNone
+                     : shortcuts.map(\.displayString).joined(separator: "\n"))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                Button(FeatureStrings.macros(l10n.language).manageButton) {
+                    SettingsRouter.shared.request(feature.settingsDestination,
+                                                  sidebarFeature: feature)
+                }
+            }
+        }
+    }
+}
+
 private struct CentralWindowLayoutShortcutRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var superKey = SuperKeyService.shared
@@ -491,7 +528,8 @@ private struct CentralWindowLayoutShortcutRow: View {
             return
         }
         if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut,
-                                                                           excluding: action) {
+                                                                           excluding: action)
+            ?? MacroSupport.ownerTitle(of: shortcut) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }

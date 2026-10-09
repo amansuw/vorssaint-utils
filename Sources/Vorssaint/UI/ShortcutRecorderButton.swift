@@ -452,7 +452,7 @@ struct ShortcutPreferenceRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
-        if let conflict = additionalConflict(shortcut) {
+        if let conflict = additionalConflict(shortcut) ?? MacroSupport.ownerTitle(of: shortcut) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }

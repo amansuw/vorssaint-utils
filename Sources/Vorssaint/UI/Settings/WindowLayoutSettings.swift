@@ -267,7 +267,8 @@ struct WindowLayoutSettings: View {
     }
 
     private func saveDirectionalShortcut(_ shortcut: GlobalShortcut) {
-        if let conflict = service.directionalShortcutConflictTitle(shortcut) {
+        if let conflict = service.directionalShortcutConflictTitle(shortcut)
+            ?? MacroSupport.ownerTitle(of: shortcut) {
             directionalError = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }
@@ -543,7 +544,8 @@ private struct WindowLayoutActionRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
-        if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: action) {
+        if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: action)
+            ?? MacroSupport.ownerTitle(of: shortcut) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }

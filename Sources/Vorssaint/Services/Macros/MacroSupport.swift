@@ -15,6 +15,19 @@ struct MacroStep: Codable, Identifiable, Equatable {
         case keys
         /// Does nothing for `seconds`.
         case wait
+        /// Types a password kept in the Keychain under this step's id. The
+        /// password itself is never part of the step, so it is never in
+        /// preferences or in a settings backup.
+        case password
+        /// Opens `app`, or `link` when no app is chosen, and waits for it to
+        /// come to the front, so the steps after it land in the right place.
+        case open
+        /// Clicks where the pointer is.
+        case click
+    }
+
+    enum Click: String, Codable, CaseIterable {
+        case left, right, double
     }
 
     var id = UUID()
@@ -24,9 +37,16 @@ struct MacroStep: Codable, Identifiable, Equatable {
     /// modifier: Return, Tab and the arrows are ordinary steps.
     var shortcut = ""
     var seconds = MacroSupport.defaultWait
+    /// A password step refuses to type anywhere a password would be visible.
+    var passwordFieldOnly = true
+    /// The bundle identifier an open step launches; empty means `link`.
+    var app = ""
+    /// A web address, a file or a folder for an open step.
+    var link = ""
+    var click = Click.left
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, text, shortcut, seconds
+        case id, kind, text, shortcut, seconds, passwordFieldOnly, app, link, click
     }
 }
 
@@ -38,6 +58,11 @@ extension MacroStep {
         text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
         shortcut = try container.decodeIfPresent(String.self, forKey: .shortcut) ?? ""
         seconds = try container.decodeIfPresent(Double.self, forKey: .seconds) ?? MacroSupport.defaultWait
+        passwordFieldOnly = try container.decodeIfPresent(Bool.self, forKey: .passwordFieldOnly) ?? true
+        app = try container.decodeIfPresent(String.self, forKey: .app) ?? ""
+        link = try container.decodeIfPresent(String.self, forKey: .link) ?? ""
+        // A click of a kind this version does not know is still a click.
+        click = (try? container.decodeIfPresent(Click.self, forKey: .click)) ?? .left
     }
 }
 
@@ -51,9 +76,15 @@ struct Macro: Codable, Identifiable, Equatable {
     var steps: [MacroStep] = []
     /// Seconds between typed characters. Zero types each text step at once.
     var keystrokeDelay = 0.0
+    /// How many times the steps play on one press.
+    var repeatCount = 1
+    /// Bundle identifiers the macro is limited to; empty means every app. Its
+    /// shortcut is only held while one of them is in front, so the same keys
+    /// keep their own meaning everywhere else.
+    var apps: [String] = []
 
     enum CodingKeys: String, CodingKey {
-        case id, name, shortcut, enabled, steps, keystrokeDelay
+        case id, name, shortcut, enabled, steps, keystrokeDelay, repeatCount, apps
     }
 }
 
@@ -70,6 +101,8 @@ extension Macro {
         steps = (try container.decodeIfPresent([LossyStep].self, forKey: .steps) ?? [])
             .compactMap(\.step)
         keystrokeDelay = try container.decodeIfPresent(Double.self, forKey: .keystrokeDelay) ?? 0
+        repeatCount = try container.decodeIfPresent(Int.self, forKey: .repeatCount) ?? 1
+        apps = try container.decodeIfPresent([String].self, forKey: .apps) ?? []
     }
 
     private struct LossyStep: Decodable {
@@ -92,6 +125,13 @@ enum MacroSupport {
     static let defaultWait = 0.5
     static let waitRange: ClosedRange<Double> = 0.05...60
     static let maxKeystrokeDelay = 0.5
+    static let repeatRange: ClosedRange<Int> = 1...99
+    static let maxApps = 20
+    /// What a text step may grow to once its variables are filled in: the
+    /// clipboard can hold a whole document.
+    static let maxExpandedTextLength = 20_000
+    /// How long an open step waits for what it opened to come to the front.
+    static let openTimeout = 10.0
 
     /// What the typing speed picker offers, as seconds between characters.
     enum TypingSpeed: Double, CaseIterable {
@@ -118,13 +158,67 @@ enum MacroSupport {
         GlobalShortcut(storageValue: step.shortcut, requiringModifier: false)
     }
 
-    /// Whether running the step would do anything.
+    /// Whether running the step would do anything. A password step counts:
+    /// whether its password exists is the Keychain's to answer, at the moment
+    /// the step is saved and again when it runs.
     static func isRunnable(_ step: MacroStep) -> Bool {
         switch step.kind {
         case .text: return !step.text.isEmpty
         case .keys: return keyPress(of: step) != nil
         case .wait: return step.seconds > 0
+        case .password: return true
+        case .open: return !step.app.isEmpty || openURL(from: step.link) != nil
+        case .click: return true
         }
+    }
+
+    /// The address an open step's link stands for. A scheme is kept as typed,
+    /// a path opens that file or folder, and a bare site such as
+    /// "example.com/page" opens over https. Anything else opens nothing.
+    static func openURL(from link: String) -> URL? {
+        let link = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !link.isEmpty else { return nil }
+        if link.hasPrefix("/") || link.hasPrefix("~") {
+            return URL(fileURLWithPath: (link as NSString).expandingTildeInPath)
+        }
+        guard !link.contains(where: \.isWhitespace) else { return nil }
+        // "localhost:3000" and "example.com:8080" parse as a scheme followed
+        // by a number, which no real scheme is.
+        if let scheme = URL(string: link)?.scheme, !scheme.isEmpty,
+           link.dropFirst(scheme.count).first == ":",
+           link.dropFirst(scheme.count + 1).first?.isNumber != true {
+            return URL(string: link)
+        }
+        if link.lowercased().hasPrefix("localhost") { return URL(string: "http://" + link) }
+        guard link.contains(".") else { return nil }
+        return URL(string: "https://" + link)
+    }
+
+    /// Whether a text step has variables to fill in before it is typed. They
+    /// are the ones text snippets use: {{date}}, {{time}}, {{clipboard}}.
+    static func usesVariables(_ text: String) -> Bool {
+        text.contains("{{")
+    }
+
+    /// Roles whose content is shown as it is typed.
+    static let visibleTextRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
+    static let secureTextRole = "AXSecureTextField"
+
+    /// Whether what has focus hides what is typed into it. A field that says
+    /// it is a password field is one, and a text field that does not say so
+    /// is not, even while secure input is on: a terminal with secure keyboard
+    /// entry still prints every character. Only when the focused element is
+    /// unknown, or is not a text field at all, does secure input decide.
+    static func isPasswordField(role: String?, subrole: String?, secureInput: Bool) -> Bool {
+        if subrole == secureTextRole || role == secureTextRole { return true }
+        if let role, visibleTextRoles.contains(role) { return false }
+        return secureInput
+    }
+
+    /// A password as it is typed: one line, since a line break would press
+    /// Return in the middle of it.
+    static func typedPassword(_ password: String) -> String {
+        password.filter { !$0.isNewline }
     }
 
     static func runnableSteps(of macro: Macro) -> [MacroStep] {
@@ -133,17 +227,23 @@ enum MacroSupport {
 
     /// The macro as it is saved: values inside their limits and steps that
     /// would do nothing removed, so the runner never has to second-guess a
-    /// stored macro.
-    static func sanitized(_ macro: Macro) -> Macro {
+    /// stored macro. `hasPassword` answers for the Keychain, so a password
+    /// step with nothing to type is removed like any other empty step.
+    static func sanitized(_ macro: Macro, hasPassword: (UUID) -> Bool = { _ in true }) -> Macro {
         var result = macro
         result.name = String(macro.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
         result.shortcut = trigger(of: macro)?.storageValue ?? ""
         result.keystrokeDelay = min(max(macro.keystrokeDelay.isFinite ? macro.keystrokeDelay : 0, 0),
                                     maxKeystrokeDelay)
+        result.repeatCount = min(max(macro.repeatCount, repeatRange.lowerBound), repeatRange.upperBound)
+        var seenApps: Set<String> = []
+        result.apps = Array(macro.apps.filter { !$0.isEmpty && seenApps.insert($0).inserted }.prefix(maxApps))
         result.steps = macro.steps.prefix(maxSteps).compactMap { step in
             var step = step
             step.text = String(step.text.prefix(maxTextLength))
             step.seconds = clampedWait(step.seconds)
+            step.link = String(step.link.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2000))
+            if step.kind == .password, !hasPassword(step.id) { return nil }
             return isRunnable(step) ? step : nil
         }
         return result
@@ -154,13 +254,23 @@ enum MacroSupport {
         return min(max(seconds, waitRange.lowerBound), waitRange.upperBound)
     }
 
-    /// The macros that get a global key, in list order: switched on, with a
-    /// valid combination and something to run. Two macros on one combination
-    /// would leave one of them dead, so the first in the list keeps it.
-    static func registrations(_ macros: [Macro]) -> [(macro: Macro, shortcut: GlobalShortcut)] {
+    /// Whether the macro answers while `bundleID` is the app in front.
+    static func applies(_ macro: Macro, inApp bundleID: String?) -> Bool {
+        macro.apps.isEmpty || (bundleID.map(macro.apps.contains) ?? false)
+    }
+
+    /// The macros that get a global key while `frontmostBundleID` is in
+    /// front: switched on, with a valid combination, something to run and no
+    /// app limit that leaves this app out. Two macros on one combination
+    /// would leave one of them dead, so a macro made for this app comes
+    /// before one that works everywhere, and otherwise the first in the list
+    /// keeps the combination.
+    static func registrations(_ macros: [Macro],
+                              frontmostBundleID: String? = nil) -> [(macro: Macro, shortcut: GlobalShortcut)] {
         var taken: Set<GlobalShortcut> = []
         var result: [(macro: Macro, shortcut: GlobalShortcut)] = []
-        for macro in macros where macro.enabled {
+        let candidates = macros.filter { $0.enabled && applies($0, inApp: frontmostBundleID) }
+        for macro in candidates.filter({ !$0.apps.isEmpty }) + candidates.filter(\.apps.isEmpty) {
             guard result.count < maxMacros,
                   let shortcut = trigger(of: macro),
                   !runnableSteps(of: macro).isEmpty,
@@ -171,10 +281,55 @@ enum MacroSupport {
         return result
     }
 
-    /// The other macro that already answers to a combination.
-    static func macro(using shortcut: GlobalShortcut, in macros: [Macro],
+    /// Whether any macro is limited to apps, which is the only reason to
+    /// follow which app is in front.
+    static func followsFrontmostApp(_ macros: [Macro]) -> Bool {
+        macros.contains { $0.enabled && !$0.apps.isEmpty }
+    }
+
+    /// The other macro that would answer to the same combination in the same
+    /// place. A macro limited to apps may share a combination with one that
+    /// works everywhere, and two limited ones may share it when no app is on
+    /// both lists.
+    static func macro(using shortcut: GlobalShortcut, apps: [String] = [], in macros: [Macro],
                       excluding id: UUID) -> Macro? {
-        macros.first { $0.id != id && trigger(of: $0) == shortcut }
+        macros.first { other in
+            guard other.id != id, trigger(of: other) == shortcut else { return false }
+            if other.apps.isEmpty || apps.isEmpty { return other.apps.isEmpty && apps.isEmpty }
+            return !Set(other.apps).isDisjoint(with: apps)
+        }
+    }
+
+    /// The macro behind a combination, for the other shortcut fields: any
+    /// macro that can answer to it somewhere is in their way.
+    static func owner(of shortcut: GlobalShortcut, defaults: UserDefaults = .standard) -> Macro? {
+        guard defaults.bool(forKey: AppFeature.macros.availabilityKey),
+              defaults.bool(forKey: DefaultsKey.macrosEnabled) else { return nil }
+        return decode(defaults.data(forKey: DefaultsKey.macros)).first {
+            $0.enabled && trigger(of: $0) == shortcut && !runnableSteps(of: $0).isEmpty
+        }
+    }
+
+    /// The macros another surface may run by name: the feature installed and
+    /// switched on, and each one switched on with something to do.
+    static func runnableMacros(defaults: UserDefaults = .standard) -> [Macro] {
+        guard defaults.bool(forKey: AppFeature.macros.availabilityKey),
+              defaults.bool(forKey: DefaultsKey.macrosEnabled) else { return [] }
+        return decode(defaults.data(forKey: DefaultsKey.macros)).filter {
+            $0.enabled && !runnableSteps(of: $0).isEmpty
+        }
+    }
+
+    /// One of them by id, for a surface that kept only the id.
+    static func runnableMacro(withID id: UUID, defaults: UserDefaults = .standard) -> Macro? {
+        runnableMacros(defaults: defaults).first { $0.id == id }
+    }
+
+    /// The owner's name the way a shortcut field shows who is in its way.
+    static func ownerTitle(of shortcut: GlobalShortcut, defaults: UserDefaults = .standard) -> String? {
+        owner(of: shortcut, defaults: defaults).map {
+            $0.name.isEmpty ? FeatureStrings.macros(L10n.shared.language).untitled : $0.name
+        }
     }
 
     /// One piece of a text step typed character by character.
@@ -194,18 +349,6 @@ enum MacroSupport {
         }
     }
 
-    /// How long the macro takes when nothing holds it up, for the summary
-    /// under its name. Typed characters only count at a timed speed.
-    static func estimatedDuration(of macro: Macro) -> Double {
-        runnableSteps(of: macro).reduce(0) { total, step in
-            switch step.kind {
-            case .wait: return total + step.seconds
-            case .text: return total + Double(step.text.count) * macro.keystrokeDelay
-            case .keys: return total
-            }
-        }
-    }
-
     /// Seconds without a trailing zero: "0.5", "2", "1.25".
     static func secondsText(_ seconds: Double, locale: Locale = .current) -> String {
         let formatter = NumberFormatter()
@@ -216,12 +359,18 @@ enum MacroSupport {
         return formatter.string(from: NSNumber(value: seconds)) ?? String(seconds)
     }
 
-    /// The combinations the macros answer to, read the way `MacroService`
-    /// registers them, so other shortcut fields can see what is taken.
+    /// Every combination a macro answers to somewhere, in list order and
+    /// without repeats, for the pages that list what is taken.
     static func triggers(defaults: UserDefaults = .standard) -> [GlobalShortcut] {
         guard defaults.bool(forKey: AppFeature.macros.availabilityKey),
               defaults.bool(forKey: DefaultsKey.macrosEnabled) else { return [] }
-        return registrations(decode(defaults.data(forKey: DefaultsKey.macros))).map(\.shortcut)
+        var seen: Set<GlobalShortcut> = []
+        return decode(defaults.data(forKey: DefaultsKey.macros)).compactMap { macro in
+            guard macro.enabled, !runnableSteps(of: macro).isEmpty,
+                  let shortcut = trigger(of: macro), seen.insert(shortcut).inserted
+            else { return nil }
+            return shortcut
+        }
     }
 
     static func decode(_ data: Data?) -> [Macro] {

@@ -189,6 +189,7 @@ enum CommandBarCatalog {
         entries.append(contentsOf: systemAnswerEntries(s, bar: bar))
         entries.append(contentsOf: settingsEntries(s, language: language, bar: bar))
         entries.append(contentsOf: snippetEntries(bar))
+        entries.append(contentsOf: macroEntries())
         entries.append(contentsOf: linkEntries(
             CommandBarLinks.decode(UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks)),
             bar: bar))
@@ -957,6 +958,33 @@ enum CommandBarCatalog {
                     run: { _ in
                         SnippetLibraryService.shared.insert(snippet)
                     })
+            }
+    }
+
+    // MARK: - Macros
+
+    /// One row per named macro, so a macro runs from the bar as well as from
+    /// its own combination. The bar never activates, so the app the macro
+    /// plays into is still the one in front once the bar has left the screen.
+    private static func macroEntries() -> [CommandBarEntry] {
+        let defaults = UserDefaults.standard
+        guard AppFeature.macros.isAvailable,
+              defaults.bool(forKey: DefaultsKey.macrosEnabled),
+              let data = defaults.data(forKey: DefaultsKey.macros)
+        else { return [] }
+        let text = FeatureStrings.macros(L10n.shared.language)
+        return MacroSupport.decode(data)
+            .filter { $0.enabled && !$0.name.isEmpty && !MacroSupport.runnableSteps(of: $0).isEmpty }
+            .map { macro in
+                CommandBarEntry(
+                    id: "macro.\(macro.id.uuidString)",
+                    title: macro.name,
+                    subtitle: text.kindMacro,
+                    keywords: text.pageTitle + " " + text.kindMacro,
+                    icon: .symbol(AppFeature.macros.symbolName),
+                    shortcut: MacroSupport.trigger(of: macro),
+                    trouble: Permissions.shared.accessibility ? nil : .needsPermission,
+                    run: { _ in afterBeat { MacroService.shared.run(macro) } })
             }
     }
 

@@ -23,7 +23,7 @@ enum MacroTests {
         let newerFile = """
             [{"id":"\(macro.id.uuidString)","steps":[
               {"id":"\(typeHello.id.uuidString)","kind":"text","text":"Hello"},
-              {"id":"\(UUID().uuidString)","kind":"click","x":10},
+              {"id":"\(UUID().uuidString)","kind":"teleport","x":10},
               {"id":"\(waitHalf.id.uuidString)","kind":"wait"}]}]
             """
         let tolerant = MacroSupport.decode(Data(newerFile.utf8))
@@ -74,6 +74,116 @@ enum MacroTests {
         expect(MacroSupport.sanitized(tooMany).steps.count == MacroSupport.maxSteps,
                "a macro keeps at most the allowed number of steps")
 
+        // Password steps
+        let typePassword = MacroStep(kind: .password)
+        let withPassword = Macro(shortcut: trigger.storageValue, steps: [typeHello, typePassword])
+        let encodedPassword = MacroSupport.encode([withPassword]).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        expect(MacroSupport.decode(MacroSupport.encode([withPassword])) == [withPassword]
+               && encodedPassword.contains("\"kind\":\"password\""),
+               "a password step is stored as a step of its own kind")
+        expect(Mirror(reflecting: typePassword).children.allSatisfy { ($0.label ?? "") != "password" },
+               "a password step has nowhere to hold the password, so it cannot reach preferences or a backup")
+        let olderPasswordStep = """
+            [{"id":"\(macro.id.uuidString)","steps":[{"id":"\(typePassword.id.uuidString)","kind":"password"}]}]
+            """
+        expect(MacroSupport.decode(Data(olderPasswordStep.utf8)).first?.steps.first?.passwordFieldOnly == true,
+               "a password step that does not say otherwise only types into password fields")
+        expect(MacroSupport.isRunnable(typePassword)
+               && MacroSupport.registrations([Macro(shortcut: trigger.storageValue, steps: [typePassword])]).count == 1,
+               "a password step is something to run, so a macro made only of one still registers")
+        expect(MacroSupport.sanitized(withPassword, hasPassword: { _ in false }).steps == [typeHello]
+               && MacroSupport.sanitized(withPassword, hasPassword: { $0 == typePassword.id }).steps
+                   == [typeHello, typePassword],
+               "saving drops a password step with no password and keeps one that has it")
+        expect(MacroSupport.typedPassword("pa\nss\r\nword") == "password"
+               && MacroSupport.typedPassword("p@ss wörd 🔑") == "p@ss wörd 🔑",
+               "a password is typed as one line and otherwise exactly as saved")
+        expect(MacroSupport.isPasswordField(role: "AXTextField", subrole: "AXSecureTextField", secureInput: false)
+               && MacroSupport.isPasswordField(role: "AXSecureTextField", subrole: nil, secureInput: false),
+               "a field that says it is a password field is one, whatever secure input says")
+        expect(!MacroSupport.isPasswordField(role: "AXTextField", subrole: nil, secureInput: true)
+               && !MacroSupport.isPasswordField(role: "AXTextArea", subrole: nil, secureInput: true)
+               && !MacroSupport.isPasswordField(role: "AXComboBox", subrole: "AXSearchField", secureInput: true),
+               "a visible text field is never a password field, even while secure input is on")
+        expect(MacroSupport.isPasswordField(role: nil, subrole: nil, secureInput: true)
+               && !MacroSupport.isPasswordField(role: nil, subrole: nil, secureInput: false)
+               && MacroSupport.isPasswordField(role: "AXWebArea", subrole: nil, secureInput: true)
+               && !MacroSupport.isPasswordField(role: "AXWebArea", subrole: nil, secureInput: false),
+               "when the focused element is unknown or is not a text field, secure input decides")
+
+        // Open and click steps
+        func link(_ text: String) -> String? { MacroSupport.openURL(from: text)?.absoluteString }
+        expect(link("https://example.com/a?b=1") == "https://example.com/a?b=1"
+               && link("example.com/page") == "https://example.com/page"
+               && link("mailto:someone@example.com") == "mailto:someone@example.com"
+               && link("slack://open") == "slack://open"
+               && link("x-apple.systempreferences:com.apple.preference.security")
+                   == "x-apple.systempreferences:com.apple.preference.security",
+               "a link keeps the scheme it was typed with and a bare site opens over https")
+        expect(link("localhost:3000") == "http://localhost:3000"
+               && link("example.com:8080/x") == "https://example.com:8080/x",
+               "a host with a port is a site, not a scheme")
+        expect(MacroSupport.openURL(from: "/Applications")?.isFileURL == true
+               && MacroSupport.openURL(from: "~/Documents")?.path.hasSuffix("/Documents") == true
+               && MacroSupport.openURL(from: "~/Documents")?.path.hasPrefix("/") == true,
+               "a path opens that file or folder, with the home folder spelled out")
+        expect(link("") == nil && link("   ") == nil && link("hello") == nil && link("two words.com") == nil,
+               "text that is neither an address nor a path opens nothing")
+        expect(MacroSupport.isRunnable(MacroStep(kind: .open, app: "com.apple.Safari"))
+               && MacroSupport.isRunnable(MacroStep(kind: .open, link: "example.com"))
+               && !MacroSupport.isRunnable(MacroStep(kind: .open))
+               && !MacroSupport.isRunnable(MacroStep(kind: .open, link: "nonsense"))
+               && MacroSupport.isRunnable(MacroStep(kind: .click)),
+               "an open step needs an app or a usable link, and a click always has something to do")
+        let futureClick = """
+            [{"id":"\(macro.id.uuidString)","repeatCount":3,"apps":["com.apple.Safari"],"steps":[
+              {"id":"\(UUID().uuidString)","kind":"click","click":"triple"},
+              {"id":"\(UUID().uuidString)","kind":"click","click":"right"},
+              {"id":"\(UUID().uuidString)","kind":"open","app":"com.apple.Notes"}]}]
+            """
+        let future = MacroSupport.decode(Data(futureClick.utf8)).first
+        expect(future?.steps.map(\.click) == [.left, .right, .left] && future?.steps.last?.app == "com.apple.Notes"
+               && future?.repeatCount == 3 && future?.apps == ["com.apple.Safari"],
+               "a click of an unknown kind is still a click, and repeat and apps are read back")
+        expect(tolerant.first?.repeatCount == 1 && tolerant.first?.apps == [],
+               "a macro saved before repeat and app limits plays once, everywhere")
+        let wild = MacroSupport.sanitized(Macro(steps: [typeHello], repeatCount: 5000,
+                                                apps: ["a.b", "", "a.b", "c.d"]))
+        expect(wild.repeatCount == MacroSupport.repeatRange.upperBound && wild.apps == ["a.b", "c.d"]
+               && MacroSupport.sanitized(Macro(steps: [typeHello], repeatCount: -4)).repeatCount == 1,
+               "saving bounds the repeat count and keeps each app once")
+        expect(MacroSupport.usesVariables("Today is {{date}}") && !MacroSupport.usesVariables("plain {text}"),
+               "only text with a variable marker is expanded before typing")
+
+        // App limits
+        var inSafari = macro
+        inSafari.id = UUID()
+        inSafari.apps = ["com.apple.Safari"]
+        var inNotes = macro
+        inNotes.id = UUID()
+        inNotes.apps = ["com.apple.Notes"]
+        expect(MacroSupport.applies(macro, inApp: nil) && MacroSupport.applies(macro, inApp: "any.app")
+               && MacroSupport.applies(inSafari, inApp: "com.apple.Safari")
+               && !MacroSupport.applies(inSafari, inApp: "com.apple.Notes")
+               && !MacroSupport.applies(inSafari, inApp: nil),
+               "a macro without apps works everywhere and a limited one only in its apps")
+        expect(MacroSupport.registrations([macro, inSafari], frontmostBundleID: "com.apple.Safari").map(\.macro.id)
+                   == [inSafari.id]
+               && MacroSupport.registrations([macro, inSafari], frontmostBundleID: "com.apple.Notes").map(\.macro.id)
+                   == [macro.id]
+               && MacroSupport.registrations([inSafari, inNotes], frontmostBundleID: "com.apple.Mail").isEmpty,
+               "in its own app a limited macro takes the combination from one that works everywhere")
+        expect(MacroSupport.followsFrontmostApp([macro, inSafari]) && !MacroSupport.followsFrontmostApp([macro]),
+               "the app in front is only followed while a macro is limited to apps")
+        expect(MacroSupport.macro(using: trigger, apps: [], in: [macro, inSafari], excluding: UUID())?.id == macro.id
+               && MacroSupport.macro(using: trigger, apps: ["com.apple.Mail"], in: [macro, inSafari],
+                                     excluding: UUID()) == nil
+               && MacroSupport.macro(using: trigger, apps: ["com.apple.Safari", "com.apple.Mail"],
+                                     in: [macro, inSafari], excluding: UUID())?.id == inSafari.id
+               && MacroSupport.macro(using: trigger, apps: ["com.apple.Notes"], in: [inSafari],
+                                     excluding: UUID()) == nil,
+               "two macros clash on a combination only where both would answer")
+
         // Which macros get a global key
         var disabled = macro
         disabled.id = UUID()
@@ -110,8 +220,6 @@ enum MacroTests {
         ], "timed typing presses Return once per line break and Tab for a tab")
         expect(MacroSupport.typedUnits("👩‍💻é") == [.characters("👩‍💻"), .characters("é")],
                "timed typing never splits a character made of several code points")
-        expect(abs(MacroSupport.estimatedDuration(of: macro) - (0.5 + 5 * 0.02)) < 0.0001,
-               "the estimate adds the waits and the time spent typing at a timed speed")
         expect(MacroSupport.TypingSpeed.nearest(to: 0) == .instant
                && MacroSupport.TypingSpeed.nearest(to: 0.05) == .natural
                && MacroSupport.TypingSpeed.nearest(to: 9) == .slow,
@@ -135,8 +243,32 @@ enum MacroTests {
             defaults.set(true, forKey: DefaultsKey.macrosEnabled)
             expect(MacroSupport.triggers(defaults: defaults) == [trigger, otherTrigger],
                    "installed and switched on, each macro claims its combination")
+            defaults.set(MacroSupport.encode([inSafari, disabled, empty]), forKey: DefaultsKey.macros)
+            expect(MacroSupport.triggers(defaults: defaults) == [trigger]
+                   && MacroSupport.owner(of: trigger, defaults: defaults)?.id == inSafari.id
+                   && MacroSupport.ownerTitle(of: trigger, defaults: defaults) == "Greeting"
+                   && MacroSupport.owner(of: otherTrigger, defaults: defaults) == nil,
+                   "another shortcut field sees a combination as taken by any macro that can answer to it")
+            expect(MacroSupport.runnableMacros(defaults: defaults).map(\.id) == [inSafari.id]
+                   && MacroSupport.runnableMacro(withID: disabled.id, defaults: defaults) == nil,
+                   "only macros that are switched on and have steps are offered to the bar and the wheel")
+            defaults.set(false, forKey: DefaultsKey.macrosEnabled)
+            expect(MacroSupport.owner(of: trigger, defaults: defaults) == nil
+                   && MacroSupport.runnableMacros(defaults: defaults).isEmpty,
+                   "with macros switched off nothing is taken and nothing is offered")
             defaults.removePersistentDomain(forName: suiteName)
         }
+
+        // On the radial menu
+        let slice = RadialMenuItem(kind: .macro, payload: macro.id.uuidString)
+        expect(RadialMenuSupport.isValidPayload(slice) && slice.macroID == macro.id
+               && !RadialMenuSupport.isValidPayload(RadialMenuItem(kind: .macro, payload: "not an id"))
+               && RadialMenuSupport.sanitized([slice, RadialMenuItem(kind: .macro, payload: "")]).map(\.id) == [slice.id],
+               "a wheel slice can run a macro by its id, and one without an id is dropped")
+        expect(RadialMenuSupport.needsAccessibility([slice]),
+               "a wheel that runs a macro needs Accessibility")
+        expect(RadialMenuSupport.decode(RadialMenuSupport.encode([slice])).first?.kind == .macro,
+               "a macro slice survives being saved and read back")
 
         // Catalog
         expect(AppFeature.macros.group == .tools && !AppFeature.macros.installedByDefault
@@ -162,6 +294,8 @@ enum MacroTests {
             expect(values.count == Mirror(reflecting: strings).children.count
                    && values.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "every macro string is present and avoids em-dashes (\(language.rawValue))")
+            expect(Set(MacroStep.Click.allCases.map(strings.title)).count == MacroStep.Click.allCases.count,
+                   "each kind of click reads differently (\(language.rawValue))")
             expect(Set(MacroStep.Kind.allCases.map(strings.title)).count == MacroStep.Kind.allCases.count
                    && Set(MacroSupport.TypingSpeed.allCases.map(strings.title)).count
                        == MacroSupport.TypingSpeed.allCases.count,

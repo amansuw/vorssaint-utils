@@ -227,11 +227,11 @@ enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
 }
 
 /// One action on the wheel. `payload` carries the target: an app or file path,
-/// a link, tool, media or window-layout identifier, or a shortcut storage
-/// value. Submenus keep their actions in `children`.
+/// a link, tool, media or window-layout identifier, a shortcut storage value,
+/// or a macro's id. Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, quickToggle, windowLayout, media, submenu
+        case app, file, url, shortcut, tool, quickToggle, windowLayout, media, submenu, macro
     }
 
     var id = UUID()
@@ -258,6 +258,10 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         kind == .windowLayout ? WindowLayoutAction(rawValue: payload) : nil
     }
 
+    var macroID: UUID? {
+        kind == .macro ? UUID(uuidString: payload) : nil
+    }
+
     /// The symbol drawn when the user picked none. App and file items prefer
     /// their real file icons in the UI; these are the fallbacks.
     var defaultSymbolName: String {
@@ -277,6 +281,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
             default: return "playpause.fill"
             }
         case .submenu: return "ellipsis.circle"
+        case .macro: return AppFeature.macros.symbolName
         }
     }
 
@@ -680,6 +685,7 @@ enum RadialMenuSupport {
         case .windowLayout: return item.windowLayoutAction != nil
         case .media: return item.mediaKey != nil
         case .submenu: return true
+        case .macro: return item.macroID != nil
         }
     }
 
@@ -778,7 +784,7 @@ enum RadialMenuSupport {
     static func needsAccessibility(_ items: [RadialMenuItem]) -> Bool {
         items.contains { item in
             switch item.kind {
-            case .shortcut, .windowLayout: return true
+            case .shortcut, .windowLayout, .macro: return true
             case .media: return item.mediaKey?.auxKeyType != nil
             case .submenu: return needsAccessibility(item.children)
             default: return false

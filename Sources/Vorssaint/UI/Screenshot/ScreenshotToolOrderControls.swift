@@ -183,7 +183,9 @@ struct ScreenshotToolOrderControls: View {
         if let shortcut, digit == nil, let rejection = ScreenshotSupport.Tool.bindingRejection(
             for: shortcut, excluding: tool, bindingsRaw: bindingsRaw,
             roleConflict: { GlobalShortcutRole.conflict(for: $0, excluding: nil) },
-            windowLayoutConflict: { WindowLayoutService.shared.shortcutConflictTitle($0) },
+            windowLayoutConflict: {
+                WindowLayoutService.shared.shortcutConflictTitle($0) ?? MacroSupport.ownerTitle(of: $0)
+            },
             systemConflict: { $0.conflictsWithSystemShortcut }) {
             let reason: String
             switch rejection {

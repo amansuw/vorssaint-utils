@@ -481,6 +481,9 @@ final class RadialMenuService: ObservableObject {
             if let tool = item.tool, !tool.isRunnable() { return nil }
             if item.kind == .quickToggle, !AppFeature.quickToggles.isAvailable { return nil }
             if item.kind == .windowLayout, !AppFeature.windowLayout.isAvailable { return nil }
+            // A macro that was deleted or switched off leaves no slice behind.
+            if item.kind == .macro,
+               item.macroID.flatMap({ MacroSupport.runnableMacro(withID: $0) }) == nil { return nil }
             if item.kind == .submenu {
                 item.children = availableItems(item.children)
                 if item.children.isEmpty { return nil }
@@ -758,6 +761,16 @@ final class RadialMenuService: ObservableObject {
             if let action = item.quickToggle { run(action) }
         case .windowLayout:
             if let action = item.windowLayoutAction { run(action) }
+        case .macro:
+            guard let macro = item.macroID.flatMap({ MacroSupport.runnableMacro(withID: $0) }) else {
+                NSSound.beep()
+                return
+            }
+            // A beat for the wheel to leave the screen; the macro waits for
+            // the summoning chord and asks for Accessibility on its own.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                MacroService.shared.run(macro)
+            }
         case .submenu:
             break
         }

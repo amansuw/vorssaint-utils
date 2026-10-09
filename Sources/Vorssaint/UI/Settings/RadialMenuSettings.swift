@@ -510,7 +510,8 @@ struct RadialMenuSettings: View {
         if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: .radialMenu) {
             return role.title(l10n.s)
         }
-        if let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
+        if let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut)
+            ?? MacroSupport.ownerTitle(of: shortcut) {
             return title
         }
         guard AppFeature.commandBar.isAvailable,
@@ -685,6 +686,7 @@ private struct RadialItemRow: View {
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .media: return text.kindMedia
         case .submenu: return text.kindSubmenu
+        case .macro: return FeatureStrings.macros(L10n.shared.language).kindMacro
         }
     }
 
@@ -838,6 +840,11 @@ private struct RadialItemEditor: View {
         AppFeature.quickToggles.isAvailable ? RadialMenuQuickToggle.allCases : []
     }
 
+    /// The macros a slice can run.
+    private var availableMacros: [Macro] {
+        MacroSupport.runnableMacros()
+    }
+
     private var urlIsInvalid: Bool {
         item.kind == .url && RadialMenuSupport.normalizedURL(item.payload) == nil
     }
@@ -871,6 +878,10 @@ private struct RadialItemEditor: View {
                             .tag(RadialMenuItem.Kind.windowLayout)
                     }
                     Text(text.kindMedia).tag(RadialMenuItem.Kind.media)
+                    if !availableMacros.isEmpty || item.kind == .macro {
+                        Text(FeatureStrings.macros(l10n.language).kindMacro)
+                            .tag(RadialMenuItem.Kind.macro)
+                    }
                     if allowsSubmenu {
                         Text(text.kindSubmenu).tag(RadialMenuItem.Kind.submenu)
                     }
@@ -954,6 +965,7 @@ private struct RadialItemEditor: View {
             case .quickToggle: item.payload = availableQuickToggles.first?.rawValue ?? ""
             case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
+            case .macro: item.payload = availableMacros.first?.id.uuidString ?? ""
             default: item.payload = ""
             }
             if kind != .submenu { item.children = [] }
@@ -1060,6 +1072,14 @@ private struct RadialItemEditor: View {
                 ForEach(availableQuickToggles) { action in
                     Label(action.radialTitle, systemImage: action.symbolName)
                         .tag(action.rawValue)
+                }
+            }
+        case .macro:
+            let macroText = FeatureStrings.macros(l10n.language)
+            Picker(macroText.kindMacro, selection: $item.payload) {
+                ForEach(availableMacros) { macro in
+                    Text(macro.name.isEmpty ? macroText.untitled : macro.name)
+                        .tag(macro.id.uuidString)
                 }
             }
         case .windowLayout:

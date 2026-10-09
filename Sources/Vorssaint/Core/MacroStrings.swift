@@ -36,12 +36,42 @@ struct MacroFeatureStrings {
     let moveUp: String
     let moveDown: String
     let removeStep: String
+    let stepPassword: String
+    let passwordPlaceholder: String
+    let passwordSavedPlaceholder: String
+    let passwordFieldOnly: String
+    let passwordCaption: String
+    let passwordSaveFailed: String
+    let kindMacro: String
+    let stepOpen: String
+    let openLinkPlaceholder: String
+    let chooseApp: String
+    let stepClick: String
+    let clickLeft: String
+    let clickRight: String
+    let clickDouble: String
+    let repeatLabel: String
+    let appsTitle: String
+    let appsCaption: String
+    let addApp: String
+    let removeApp: String
 
     func title(_ kind: MacroStep.Kind) -> String {
         switch kind {
         case .text: return stepText
         case .keys: return stepKeys
         case .wait: return stepWait
+        case .password: return stepPassword
+        case .open: return stepOpen
+        case .click: return stepClick
+        }
+    }
+
+    func title(_ click: MacroStep.Click) -> String {
+        switch click {
+        case .left: return clickLeft
+        case .right: return clickRight
+        case .double: return clickDouble
         }
     }
 
@@ -110,7 +140,26 @@ extension MacroFeatureStrings {
         secondsUnit: "seconds",
         moveUp: "Move up",
         moveDown: "Move down",
-        removeStep: "Remove step"
+        removeStep: "Remove step",
+        stepPassword: "Type password",
+        passwordPlaceholder: "Password",
+        passwordSavedPlaceholder: "Saved. Type to replace.",
+        passwordFieldOnly: "Only type into a password field",
+        passwordCaption: "Passwords are kept in your Keychain, not in settings or backups.",
+        passwordSaveFailed: "The password could not be saved to the Keychain.",
+        kindMacro: "Macro",
+        stepOpen: "Open app or link",
+        openLinkPlaceholder: "Link, file or folder",
+        chooseApp: "Choose app…",
+        stepClick: "Click at pointer",
+        clickLeft: "Left click",
+        clickRight: "Right click",
+        clickDouble: "Double click",
+        repeatLabel: "Repeat",
+        appsTitle: "Only in these apps",
+        appsCaption: "With no apps listed, the macro works everywhere. Limited to apps, its shortcut is only taken while one of them is in front.",
+        addApp: "Add app",
+        removeApp: "Remove app"
     )
 
     static let ptBR = MacroFeatureStrings(
@@ -145,7 +194,26 @@ extension MacroFeatureStrings {
         secondsUnit: "segundos",
         moveUp: "Mover para cima",
         moveDown: "Mover para baixo",
-        removeStep: "Remover passo"
+        removeStep: "Remover passo",
+        stepPassword: "Digitar senha",
+        passwordPlaceholder: "Senha",
+        passwordSavedPlaceholder: "Salva. Digite para substituir.",
+        passwordFieldOnly: "Digitar apenas em um campo de senha",
+        passwordCaption: "As senhas ficam nas suas Chaves, não nos ajustes nem nos backups.",
+        passwordSaveFailed: "Não foi possível salvar a senha nas Chaves.",
+        kindMacro: "Macro",
+        stepOpen: "Abrir app ou link",
+        openLinkPlaceholder: "Link, arquivo ou pasta",
+        chooseApp: "Escolher app…",
+        stepClick: "Clicar no ponteiro",
+        clickLeft: "Clique esquerdo",
+        clickRight: "Clique direito",
+        clickDouble: "Clique duplo",
+        repeatLabel: "Repetir",
+        appsTitle: "Somente nestes apps",
+        appsCaption: "Sem apps na lista, a macro funciona em todos. Limitada a apps, o atalho só fica ocupado enquanto um deles está em primeiro plano.",
+        addApp: "Adicionar app",
+        removeApp: "Remover app"
     )
 
     static let tr = MacroFeatureStrings(
@@ -180,7 +248,26 @@ extension MacroFeatureStrings {
         secondsUnit: "saniye",
         moveUp: "Yukarı taşı",
         moveDown: "Aşağı taşı",
-        removeStep: "Adımı kaldır"
+        removeStep: "Adımı kaldır",
+        stepPassword: "Parola yaz",
+        passwordPlaceholder: "Parola",
+        passwordSavedPlaceholder: "Kaydedildi. Değiştirmek için yazın.",
+        passwordFieldOnly: "Yalnızca parola alanına yaz",
+        passwordCaption: "Parolalar ayarlarda veya yedeklerde değil, Anahtar Zinciri’nizde tutulur.",
+        passwordSaveFailed: "Parola Anahtar Zinciri’ne kaydedilemedi.",
+        kindMacro: "Makro",
+        stepOpen: "Uygulama veya bağlantı aç",
+        openLinkPlaceholder: "Bağlantı, dosya veya klasör",
+        chooseApp: "Uygulama seç…",
+        stepClick: "İmlecin olduğu yere tıkla",
+        clickLeft: "Sol tık",
+        clickRight: "Sağ tık",
+        clickDouble: "Çift tık",
+        repeatLabel: "Yinele",
+        appsTitle: "Yalnızca bu uygulamalarda",
+        appsCaption: "Listede uygulama yoksa makro her yerde çalışır. Uygulamalarla sınırlandığında kısayolu yalnızca onlardan biri öndeyken kullanılır.",
+        addApp: "Uygulama ekle",
+        removeApp: "Uygulamayı kaldır"
     )
 
     static let ru = MacroFeatureStrings(
@@ -215,7 +302,26 @@ extension MacroFeatureStrings {
         secondsUnit: "сек.",
         moveUp: "Переместить вверх",
         moveDown: "Переместить вниз",
-        removeStep: "Удалить шаг"
+        removeStep: "Удалить шаг",
+        stepPassword: "Ввести пароль",
+        passwordPlaceholder: "Пароль",
+        passwordSavedPlaceholder: "Сохранён. Введите, чтобы заменить.",
+        passwordFieldOnly: "Вводить только в поле пароля",
+        passwordCaption: "Пароли хранятся в Связке ключей, а не в настройках или резервных копиях.",
+        passwordSaveFailed: "Не удалось сохранить пароль в Связке ключей.",
+        kindMacro: "Макрос",
+        stepOpen: "Открыть приложение или ссылку",
+        openLinkPlaceholder: "Ссылка, файл или папка",
+        chooseApp: "Выбрать приложение…",
+        stepClick: "Щёлкнуть под указателем",
+        clickLeft: "Левый щелчок",
+        clickRight: "Правый щелчок",
+        clickDouble: "Двойной щелчок",
+        repeatLabel: "Повторять",
+        appsTitle: "Только в этих приложениях",
+        appsCaption: "Если список пуст, макрос работает везде. Если он ограничен приложениями, сочетание занято только пока одно из них активно.",
+        addApp: "Добавить приложение",
+        removeApp: "Удалить приложение"
     )
 
     static let es = MacroFeatureStrings(
@@ -250,7 +356,26 @@ extension MacroFeatureStrings {
         secondsUnit: "segundos",
         moveUp: "Subir",
         moveDown: "Bajar",
-        removeStep: "Eliminar paso"
+        removeStep: "Eliminar paso",
+        stepPassword: "Escribir contraseña",
+        passwordPlaceholder: "Contraseña",
+        passwordSavedPlaceholder: "Guardada. Escribe para sustituirla.",
+        passwordFieldOnly: "Escribir solo en un campo de contraseña",
+        passwordCaption: "Las contraseñas se guardan en tu llavero, no en los ajustes ni en las copias de seguridad.",
+        passwordSaveFailed: "No se pudo guardar la contraseña en el llavero.",
+        kindMacro: "Macro",
+        stepOpen: "Abrir app o enlace",
+        openLinkPlaceholder: "Enlace, archivo o carpeta",
+        chooseApp: "Elegir app…",
+        stepClick: "Hacer clic en el puntero",
+        clickLeft: "Clic izquierdo",
+        clickRight: "Clic derecho",
+        clickDouble: "Doble clic",
+        repeatLabel: "Repetir",
+        appsTitle: "Solo en estas apps",
+        appsCaption: "Sin apps en la lista, la macro funciona en todas. Limitada a apps, su atajo solo se ocupa mientras una de ellas está en primer plano.",
+        addApp: "Añadir app",
+        removeApp: "Eliminar app"
     )
 
     static let sk = MacroFeatureStrings(
@@ -285,7 +410,26 @@ extension MacroFeatureStrings {
         secondsUnit: "sekúnd",
         moveUp: "Posunúť nahor",
         moveDown: "Posunúť nadol",
-        removeStep: "Odstrániť krok"
+        removeStep: "Odstrániť krok",
+        stepPassword: "Napísať heslo",
+        passwordPlaceholder: "Heslo",
+        passwordSavedPlaceholder: "Uložené. Píšte, ak ho chcete nahradiť.",
+        passwordFieldOnly: "Písať iba do poľa na heslo",
+        passwordCaption: "Heslá sa uchovávajú vo vašej Kľúčenke, nie v nastaveniach ani zálohách.",
+        passwordSaveFailed: "Heslo sa nepodarilo uložiť do Kľúčenky.",
+        kindMacro: "Makro",
+        stepOpen: "Otvoriť aplikáciu alebo odkaz",
+        openLinkPlaceholder: "Odkaz, súbor alebo priečinok",
+        chooseApp: "Vybrať aplikáciu…",
+        stepClick: "Kliknúť na mieste kurzora",
+        clickLeft: "Kliknutie ľavým",
+        clickRight: "Kliknutie pravým",
+        clickDouble: "Dvojité kliknutie",
+        repeatLabel: "Opakovať",
+        appsTitle: "Iba v týchto aplikáciách",
+        appsCaption: "Ak je zoznam prázdny, makro funguje všade. Ak je obmedzené na aplikácie, skratka je obsadená, iba kým je niektorá z nich v popredí.",
+        addApp: "Pridať aplikáciu",
+        removeApp: "Odstrániť aplikáciu"
     )
 
     static let de = MacroFeatureStrings(
@@ -320,7 +464,26 @@ extension MacroFeatureStrings {
         secondsUnit: "Sekunden",
         moveUp: "Nach oben",
         moveDown: "Nach unten",
-        removeStep: "Schritt entfernen"
+        removeStep: "Schritt entfernen",
+        stepPassword: "Passwort tippen",
+        passwordPlaceholder: "Passwort",
+        passwordSavedPlaceholder: "Gesichert. Zum Ersetzen tippen.",
+        passwordFieldOnly: "Nur in ein Passwortfeld tippen",
+        passwordCaption: "Passwörter liegen in deinem Schlüsselbund, nicht in den Einstellungen oder Backups.",
+        passwordSaveFailed: "Das Passwort konnte nicht im Schlüsselbund gesichert werden.",
+        kindMacro: "Makro",
+        stepOpen: "App oder Link öffnen",
+        openLinkPlaceholder: "Link, Datei oder Ordner",
+        chooseApp: "App auswählen …",
+        stepClick: "An der Zeigerposition klicken",
+        clickLeft: "Linksklick",
+        clickRight: "Rechtsklick",
+        clickDouble: "Doppelklick",
+        repeatLabel: "Wiederholen",
+        appsTitle: "Nur in diesen Apps",
+        appsCaption: "Ohne Apps in der Liste funktioniert das Makro überall. Auf Apps beschränkt, ist sein Kurzbefehl nur belegt, solange eine davon vorne ist.",
+        addApp: "App hinzufügen",
+        removeApp: "App entfernen"
     )
 
     static let fr = MacroFeatureStrings(
@@ -355,7 +518,26 @@ extension MacroFeatureStrings {
         secondsUnit: "secondes",
         moveUp: "Monter",
         moveDown: "Descendre",
-        removeStep: "Supprimer l’étape"
+        removeStep: "Supprimer l’étape",
+        stepPassword: "Saisir un mot de passe",
+        passwordPlaceholder: "Mot de passe",
+        passwordSavedPlaceholder: "Enregistré. Saisissez pour le remplacer.",
+        passwordFieldOnly: "Saisir uniquement dans un champ de mot de passe",
+        passwordCaption: "Les mots de passe sont conservés dans votre trousseau, pas dans les réglages ni les sauvegardes.",
+        passwordSaveFailed: "Impossible d’enregistrer le mot de passe dans le trousseau.",
+        kindMacro: "Macro",
+        stepOpen: "Ouvrir une app ou un lien",
+        openLinkPlaceholder: "Lien, fichier ou dossier",
+        chooseApp: "Choisir une app…",
+        stepClick: "Cliquer à l’emplacement du pointeur",
+        clickLeft: "Clic gauche",
+        clickRight: "Clic droit",
+        clickDouble: "Double-clic",
+        repeatLabel: "Répéter",
+        appsTitle: "Uniquement dans ces apps",
+        appsCaption: "Sans app dans la liste, la macro fonctionne partout. Limitée à des apps, son raccourci n’est pris que lorsque l’une d’elles est au premier plan.",
+        addApp: "Ajouter une app",
+        removeApp: "Retirer l’app"
     )
 
     static let it = MacroFeatureStrings(
@@ -390,7 +572,26 @@ extension MacroFeatureStrings {
         secondsUnit: "secondi",
         moveUp: "Sposta su",
         moveDown: "Sposta giù",
-        removeStep: "Rimuovi passaggio"
+        removeStep: "Rimuovi passaggio",
+        stepPassword: "Digita password",
+        passwordPlaceholder: "Password",
+        passwordSavedPlaceholder: "Salvata. Digita per sostituirla.",
+        passwordFieldOnly: "Digita solo in un campo password",
+        passwordCaption: "Le password restano nel tuo portachiavi, non nelle impostazioni né nei backup.",
+        passwordSaveFailed: "Impossibile salvare la password nel portachiavi.",
+        kindMacro: "Macro",
+        stepOpen: "Apri app o link",
+        openLinkPlaceholder: "Link, file o cartella",
+        chooseApp: "Scegli app…",
+        stepClick: "Fai clic dove si trova il puntatore",
+        clickLeft: "Clic sinistro",
+        clickRight: "Clic destro",
+        clickDouble: "Doppio clic",
+        repeatLabel: "Ripeti",
+        appsTitle: "Solo in queste app",
+        appsCaption: "Senza app nell’elenco, la macro funziona ovunque. Limitata ad alcune app, la sua scorciatoia è occupata solo mentre una di esse è in primo piano.",
+        addApp: "Aggiungi app",
+        removeApp: "Rimuovi app"
     )
 
     static let ja = MacroFeatureStrings(
@@ -425,7 +626,26 @@ extension MacroFeatureStrings {
         secondsUnit: "秒",
         moveUp: "上へ移動",
         moveDown: "下へ移動",
-        removeStep: "ステップを削除"
+        removeStep: "ステップを削除",
+        stepPassword: "パスワードを入力",
+        passwordPlaceholder: "パスワード",
+        passwordSavedPlaceholder: "保存済み。入力すると置き換えます。",
+        passwordFieldOnly: "パスワード欄にのみ入力",
+        passwordCaption: "パスワードは設定やバックアップではなく、キーチェーンに保存されます。",
+        passwordSaveFailed: "パスワードをキーチェーンに保存できませんでした。",
+        kindMacro: "マクロ",
+        stepOpen: "アプリまたはリンクを開く",
+        openLinkPlaceholder: "リンク、ファイル、フォルダ",
+        chooseApp: "アプリを選択…",
+        stepClick: "ポインタの位置をクリック",
+        clickLeft: "左クリック",
+        clickRight: "右クリック",
+        clickDouble: "ダブルクリック",
+        repeatLabel: "繰り返し",
+        appsTitle: "これらのアプリでのみ",
+        appsCaption: "アプリを指定しない場合、マクロはどこでも動作します。アプリを限定すると、そのいずれかが最前面にある間だけショートカットが使われます。",
+        addApp: "アプリを追加",
+        removeApp: "アプリを削除"
     )
 
     static let ko = MacroFeatureStrings(
@@ -460,7 +680,26 @@ extension MacroFeatureStrings {
         secondsUnit: "초",
         moveUp: "위로 이동",
         moveDown: "아래로 이동",
-        removeStep: "단계 제거"
+        removeStep: "단계 제거",
+        stepPassword: "암호 입력",
+        passwordPlaceholder: "암호",
+        passwordSavedPlaceholder: "저장됨. 바꾸려면 입력하세요.",
+        passwordFieldOnly: "암호 필드에만 입력",
+        passwordCaption: "암호는 설정이나 백업이 아닌 키체인에 보관됩니다.",
+        passwordSaveFailed: "암호를 키체인에 저장할 수 없습니다.",
+        kindMacro: "매크로",
+        stepOpen: "앱 또는 링크 열기",
+        openLinkPlaceholder: "링크, 파일 또는 폴더",
+        chooseApp: "앱 선택…",
+        stepClick: "포인터 위치 클릭",
+        clickLeft: "왼쪽 클릭",
+        clickRight: "오른쪽 클릭",
+        clickDouble: "이중 클릭",
+        repeatLabel: "반복",
+        appsTitle: "다음 앱에서만",
+        appsCaption: "목록에 앱이 없으면 매크로는 모든 곳에서 작동합니다. 앱으로 제한하면 그중 하나가 맨 앞에 있을 때만 단축키를 사용합니다.",
+        addApp: "앱 추가",
+        removeApp: "앱 제거"
     )
 
     static let zhHans = MacroFeatureStrings(
@@ -495,7 +734,26 @@ extension MacroFeatureStrings {
         secondsUnit: "秒",
         moveUp: "上移",
         moveDown: "下移",
-        removeStep: "移除步骤"
+        removeStep: "移除步骤",
+        stepPassword: "输入密码",
+        passwordPlaceholder: "密码",
+        passwordSavedPlaceholder: "已保存。输入即可替换。",
+        passwordFieldOnly: "仅在密码栏中输入",
+        passwordCaption: "密码保存在钥匙串中，不在设置或备份里。",
+        passwordSaveFailed: "无法将密码保存到钥匙串。",
+        kindMacro: "宏",
+        stepOpen: "打开 App 或链接",
+        openLinkPlaceholder: "链接、文件或文件夹",
+        chooseApp: "选取 App…",
+        stepClick: "点按指针所在位置",
+        clickLeft: "左键点按",
+        clickRight: "右键点按",
+        clickDouble: "连按两下",
+        repeatLabel: "重复",
+        appsTitle: "仅在这些 App 中",
+        appsCaption: "列表为空时，宏在所有 App 中都可用。限定 App 后，只有其中之一位于最前面时才会占用快捷键。",
+        addApp: "添加 App",
+        removeApp: "移除 App"
     )
 
     static let zhTW = MacroFeatureStrings(
@@ -530,7 +788,26 @@ extension MacroFeatureStrings {
         secondsUnit: "秒",
         moveUp: "上移",
         moveDown: "下移",
-        removeStep: "移除步驟"
+        removeStep: "移除步驟",
+        stepPassword: "輸入密碼",
+        passwordPlaceholder: "密碼",
+        passwordSavedPlaceholder: "已儲存。輸入即可取代。",
+        passwordFieldOnly: "僅在密碼欄位中輸入",
+        passwordCaption: "密碼儲存在鑰匙圈中，不在設定或備份裡。",
+        passwordSaveFailed: "無法將密碼儲存到鑰匙圈。",
+        kindMacro: "巨集",
+        stepOpen: "打開 App 或連結",
+        openLinkPlaceholder: "連結、檔案或檔案夾",
+        chooseApp: "選擇 App⋯",
+        stepClick: "按一下指標所在位置",
+        clickLeft: "按一下左鍵",
+        clickRight: "按一下右鍵",
+        clickDouble: "按兩下",
+        repeatLabel: "重複",
+        appsTitle: "僅在這些 App 中",
+        appsCaption: "列表沒有 App 時，巨集在所有 App 中都可使用。限定 App 後，只有其中之一位於最前方時才會佔用快速鍵。",
+        addApp: "加入 App",
+        removeApp: "移除 App"
     )
 
     static let zhHK = MacroFeatureStrings(
@@ -565,7 +842,26 @@ extension MacroFeatureStrings {
         secondsUnit: "秒",
         moveUp: "上移",
         moveDown: "下移",
-        removeStep: "移除步驟"
+        removeStep: "移除步驟",
+        stepPassword: "輸入密碼",
+        passwordPlaceholder: "密碼",
+        passwordSavedPlaceholder: "已儲存。輸入即可取代。",
+        passwordFieldOnly: "只在密碼欄位中輸入",
+        passwordCaption: "密碼儲存在鑰匙圈中，不在設定或備份裡。",
+        passwordSaveFailed: "無法將密碼儲存至鑰匙圈。",
+        kindMacro: "巨集",
+        stepOpen: "開啟 App 或連結",
+        openLinkPlaceholder: "連結、檔案或資料夾",
+        chooseApp: "選擇 App⋯",
+        stepClick: "按一下指標所在位置",
+        clickLeft: "按一下左鍵",
+        clickRight: "按一下右鍵",
+        clickDouble: "按兩下",
+        repeatLabel: "重複",
+        appsTitle: "只在這些 App 中",
+        appsCaption: "列表沒有 App 時，巨集在所有 App 中都可使用。限定 App 後，只有其中之一位於最前方時才會佔用快捷鍵。",
+        addApp: "加入 App",
+        removeApp: "移除 App"
     )
 
     static let uk = MacroFeatureStrings(
@@ -600,6 +896,25 @@ extension MacroFeatureStrings {
         secondsUnit: "с",
         moveUp: "Перемістити вгору",
         moveDown: "Перемістити вниз",
-        removeStep: "Вилучити крок"
+        removeStep: "Вилучити крок",
+        stepPassword: "Ввести пароль",
+        passwordPlaceholder: "Пароль",
+        passwordSavedPlaceholder: "Збережено. Введіть, щоб замінити.",
+        passwordFieldOnly: "Вводити лише в поле пароля",
+        passwordCaption: "Паролі зберігаються у В’язці ключів, а не в параметрах чи резервних копіях.",
+        passwordSaveFailed: "Не вдалося зберегти пароль у В’язці ключів.",
+        kindMacro: "Макрос",
+        stepOpen: "Відкрити програму або посилання",
+        openLinkPlaceholder: "Посилання, файл або тека",
+        chooseApp: "Вибрати програму…",
+        stepClick: "Клацнути під вказівником",
+        clickLeft: "Клацання лівою",
+        clickRight: "Клацання правою",
+        clickDouble: "Подвійне клацання",
+        repeatLabel: "Повторювати",
+        appsTitle: "Лише в цих програмах",
+        appsCaption: "Якщо список порожній, макрос працює всюди. Якщо його обмежено програмами, поєднання зайняте лише поки одна з них активна.",
+        addApp: "Додати програму",
+        removeApp: "Вилучити програму"
     )
 }

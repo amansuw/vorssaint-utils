@@ -63,7 +63,7 @@ struct MacroSettings: View {
             MacroEditor(text: text,
                         macro: Macro(steps: [MacroStep()]),
                         isNew: true,
-                        conflictTitle: { shortcut, id in conflictTitle(shortcut, excluding: id) },
+                        conflictTitle: { shortcut, edited in conflictTitle(shortcut, for: edited) },
                         save: { upsert($0) },
                         delete: nil)
         }
@@ -71,7 +71,7 @@ struct MacroSettings: View {
             MacroEditor(text: text,
                         macro: macro,
                         isNew: false,
-                        conflictTitle: { shortcut, id in conflictTitle(shortcut, excluding: id) },
+                        conflictTitle: { shortcut, edited in conflictTitle(shortcut, for: edited) },
                         save: { upsert($0) },
                         delete: { remove(id: macro.id) })
         }
@@ -80,8 +80,9 @@ struct MacroSettings: View {
     /// Who already answers to a combination, named the way the other shortcut
     /// rows name it. The other macros come from this page's own list, and
     /// everything else from the same checks those rows run.
-    private func conflictTitle(_ shortcut: GlobalShortcut, excluding id: UUID) -> String? {
-        if let other = MacroSupport.macro(using: shortcut, in: macros, excluding: id) {
+    private func conflictTitle(_ shortcut: GlobalShortcut, for edited: Macro) -> String? {
+        if let other = MacroSupport.macro(using: shortcut, apps: edited.apps, in: macros,
+                                          excluding: edited.id) {
             return other.name.isEmpty ? text.untitled : other.name
         }
         if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
@@ -109,6 +110,9 @@ struct MacroSettings: View {
     }
 
     private func remove(id: UUID) {
+        for step in macros.first(where: { $0.id == id })?.steps ?? [] where step.kind == .password {
+            MacroPasswordStore.delete(step.id)
+        }
         macros.removeAll { $0.id == id }
         persist()
     }
@@ -179,6 +183,12 @@ private struct MacroRow: View {
                 return MacroSupport.keyPress(of: step)?.displayString ?? ""
             case .wait:
                 return "\(MacroSupport.secondsText(step.seconds)) \(text.secondsUnit)"
+            case .password:
+                return "••••••"
+            case .open:
+                return step.app.isEmpty ? step.link : InstalledApps.name(for: step.app)
+            case .click:
+                return text.title(step.click)
             }
         }
         .joined(separator: " → ")
@@ -190,15 +200,55 @@ private struct MacroEditor: View {
     @State var macro: Macro
     let isNew: Bool
     /// Names whoever already answers to a combination, or nil when it is free.
-    let conflictTitle: (GlobalShortcut, UUID) -> String?
+    let conflictTitle: (GlobalShortcut, Macro) -> String?
     let save: (Macro) -> Void
     let delete: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var l10n = L10n.shared
     @State private var shortcutMessage: String?
+    /// Passwords typed in this sheet, by step. They reach the Keychain only
+    /// on Save, and never the macro itself.
+    @State private var passwords: [UUID: String] = [:]
+    /// The steps that already had a password when the sheet opened, asked
+    /// once so drawing the sheet never goes back to the Keychain.
+    @State private var storedPasswordIDs: Set<UUID> = []
+    @State private var saveError: String?
+
+    private func hasPassword(_ id: UUID) -> Bool {
+        !MacroSupport.typedPassword(passwords[id] ?? "").isEmpty || storedPasswordIDs.contains(id)
+    }
 
     private var hasRunnableStep: Bool {
-        macro.steps.contains(where: MacroSupport.isRunnable)
+        macro.steps.contains { step in
+            MacroSupport.isRunnable(step) && (step.kind != .password || hasPassword(step.id))
+        }
+    }
+
+    /// Passwords go to the Keychain first: a macro saved without the password
+    /// its step types would only fail later, at the moment it is needed.
+    private func commit() {
+        let saved = MacroSupport.sanitized(macro, hasPassword: hasPassword)
+        // The apps can change after the shortcut was recorded, and with them
+        // who else answers to it.
+        if let shortcut = MacroSupport.trigger(of: saved), let owner = conflictTitle(shortcut, saved) {
+            shortcutMessage = String(format: l10n.s.shortcutConflictFormat, owner)
+            return
+        }
+        let passwordSteps = saved.steps.filter { $0.kind == .password }
+        for step in passwordSteps {
+            let typed = MacroSupport.typedPassword(passwords[step.id] ?? "")
+            guard typed.isEmpty || MacroPasswordStore.set(typed, for: step.id) else {
+                saveError = text.passwordSaveFailed
+                return
+            }
+        }
+        // A step removed here, or changed into another kind, leaves nothing
+        // behind in the Keychain.
+        for id in storedPasswordIDs.subtracting(passwordSteps.map(\.id)) {
+            MacroPasswordStore.delete(id)
+        }
+        save(saved)
+        dismiss()
     }
 
     private var typingSpeed: Binding<MacroSupport.TypingSpeed> {
@@ -218,6 +268,15 @@ private struct MacroEditor: View {
                 Picker(text.typingSpeedLabel, selection: typingSpeed) {
                     ForEach(MacroSupport.TypingSpeed.allCases, id: \.self) { speed in
                         Text(text.title(speed)).tag(speed)
+                    }
+                }
+                Stepper(value: $macro.repeatCount, in: MacroSupport.repeatRange) {
+                    HStack {
+                        Text(text.repeatLabel)
+                        Spacer()
+                        Text("\(macro.repeatCount)×")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -254,6 +313,9 @@ private struct MacroEditor: View {
                 VStack(spacing: 8) {
                     ForEach($macro.steps) { $step in
                         MacroStepRow(step: $step,
+                                     password: Binding(get: { passwords[step.id] ?? "" },
+                                                       set: { passwords[step.id] = $0 }),
+                                     hasStoredPassword: storedPasswordIDs.contains(step.id),
                                      text: text,
                                      position: position(of: step.id),
                                      count: macro.steps.count,
@@ -264,6 +326,36 @@ private struct MacroEditor: View {
                 .padding(.vertical, 2)
             }
             .frame(minHeight: 120, maxHeight: 300)
+            if macro.steps.contains(where: { $0.kind == .text }) {
+                Text(FeatureStrings.snippets(l10n.language).variablesHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if macro.steps.contains(where: { $0.kind == .password }) {
+                Text(text.passwordCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let saveError {
+                Text(saveError)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            AppBundleList(title: text.appsTitle,
+                          caption: text.appsCaption,
+                          addTitle: text.addApp,
+                          removeLabel: text.removeApp,
+                          bundleIDs: macro.apps,
+                          reachesEveryApp: true,
+                          onAdd: { bundleID in
+                              guard !macro.apps.contains(bundleID),
+                                    macro.apps.count < MacroSupport.maxApps else { return }
+                              macro.apps.append(bundleID)
+                          },
+                          onRemove: { bundleID in macro.apps.removeAll { $0 == bundleID } })
 
             HStack {
                 if let delete {
@@ -277,17 +369,21 @@ private struct MacroEditor: View {
                 Spacer()
                 Button(l10n.s.uninstallerCancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(FeatureStrings.snippets(l10n.language).saveButton) {
-                    save(MacroSupport.sanitized(macro))
-                    dismiss()
-                }
+                Button(FeatureStrings.snippets(l10n.language).saveButton, action: commit)
                 .buttonStyle(.borderedProminent)
                 .disabled(!hasRunnableStep)
             }
         }
         .padding(18)
         .frame(width: 560)
-        .onChange(of: l10n.language) { _, _ in shortcutMessage = nil }
+        .onAppear {
+            storedPasswordIDs = Set(macro.steps.filter { $0.kind == .password }.map(\.id)
+                .filter(MacroPasswordStore.has))
+        }
+        .onChange(of: l10n.language) { _, _ in
+            shortcutMessage = nil
+            saveError = nil
+        }
     }
 
     private var shortcutField: some View {
@@ -307,7 +403,7 @@ private struct MacroEditor: View {
                 },
                 invalidAction: { shortcutMessage = l10n.s.shortcutInvalid },
                 captureAction: { shortcut in
-                    if let owner = conflictTitle(shortcut, macro.id) {
+                    if let owner = conflictTitle(shortcut, macro) {
                         shortcutMessage = String(format: l10n.s.shortcutConflictFormat, owner)
                         return
                     }
@@ -343,12 +439,15 @@ private struct MacroEditor: View {
 
 private struct MacroStepRow: View {
     @Binding var step: MacroStep
+    @Binding var password: String
+    let hasStoredPassword: Bool
     let text: MacroFeatureStrings
     let position: Int
     let count: Int
     let move: (Int) -> Void
     let remove: () -> Void
     @ObservedObject private var l10n = L10n.shared
+    @State private var choosingApp = false
 
     /// Keys a shortcut field cannot record on its own: Escape leaves the
     /// field, Delete clears it and Tab moves focus. They are offered by name.
@@ -434,6 +533,57 @@ private struct MacroStepRow: View {
                 .labelsHidden()
             Text(text.secondsUnit)
                 .foregroundStyle(.secondary)
+        case .open:
+            if step.app.isEmpty {
+                TextField(text.openLinkPlaceholder, text: $step.link)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(text.stepOpen)
+            } else {
+                HStack(spacing: 6) {
+                    Image(nsImage: InstalledApps.icon(for: step.app))
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                    Text(InstalledApps.name(for: step.app))
+                        .lineLimit(1)
+                    Button { step.app = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(text.removeApp)
+                }
+            }
+            Button(text.chooseApp) { choosingApp = true }
+                .fixedSize()
+                .sheet(isPresented: $choosingApp) {
+                    AppPickerView(canBrowseApplications: true) {
+                        choosingApp = false
+                    } onSelect: { url in
+                        choosingApp = false
+                        if let bundleID = Bundle(url: url)?.bundleIdentifier { step.app = bundleID }
+                    } onSelectApp: { app in
+                        choosingApp = false
+                        if let bundleID = app.bundleID ?? Bundle(url: app.url)?.bundleIdentifier {
+                            step.app = bundleID
+                        }
+                    }
+                }
+        case .click:
+            Picker(text.stepClick, selection: $step.click) {
+                ForEach(MacroStep.Click.allCases, id: \.self) { click in
+                    Text(text.title(click)).tag(click)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+        case .password:
+            VStack(alignment: .leading, spacing: 4) {
+                SecureField(hasStoredPassword ? text.passwordSavedPlaceholder : text.passwordPlaceholder,
+                            text: $password)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(text.stepPassword)
+                Toggle(text.passwordFieldOnly, isOn: $step.passwordFieldOnly)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+            }
         }
     }
 }

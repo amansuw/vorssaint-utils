@@ -368,6 +368,7 @@ struct RadialMenuVisualCanvas: View {
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .media: return text.kindMedia
         case .submenu: return text.kindSubmenu
+        case .macro: return FeatureStrings.macros(L10n.shared.language).kindMacro
         }
     }
 }

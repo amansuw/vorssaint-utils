@@ -459,6 +459,9 @@ extension RadialMenuItem {
             return tool.feature.hubTitle(L10n.shared.s, hub: FeatureStrings.hub(L10n.shared.language))
         case .quickToggle:
             return quickToggle?.radialTitle ?? FeatureStrings.quickToggles(L10n.shared.language).pageTitle
+        case .macro:
+            let named = macroID.flatMap { MacroSupport.runnableMacro(withID: $0) }?.name ?? ""
+            return named.isEmpty ? FeatureStrings.macros(L10n.shared.language).kindMacro : named
         case .windowLayout:
             guard let windowLayoutAction else {
                 return FeatureStrings.windowLayout(L10n.shared.language).title
