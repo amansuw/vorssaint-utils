@@ -67,7 +67,7 @@ final class UpdateService: ObservableObject {
         }
         // The local dev build never auto-updates, but can simulate the
         // "update available" UI via the `simulateUpdate` default, for testing.
-        if AppInfo.neverUpdatesItself {
+        if AppInfo.isDeveloperBuild {
             if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
                 let simulatedVersion = AppInfo.isBeta ? "9.9.9-beta.1" : "9.9.9"
                 state = .available(version: simulatedVersion)
@@ -100,7 +100,7 @@ final class UpdateService: ObservableObject {
     // MARK: - Check
 
     func check(manual: Bool) {
-        if AppInfo.neverUpdatesItself {
+        if AppInfo.isDeveloperBuild {
             // No real update target; reflect the simulation default so the
             // notification UI can be exercised locally.
             if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
@@ -193,7 +193,7 @@ final class UpdateService: ObservableObject {
     /// or the panel opens, so a new release surfaces promptly without hammering the
     /// API. The hourly timer is the floor; this makes it feel immediate.
     func checkIfStale(maxAge: TimeInterval = 15 * 60) {
-        if AppInfo.neverUpdatesItself { return }
+        if AppInfo.isDeveloperBuild { return }
         guard autoCheckEnabled else { return }
         switch state {
         case .checking, .downloading, .installing: return
@@ -206,7 +206,11 @@ final class UpdateService: ObservableObject {
     // MARK: - Download & install
 
     func downloadAndInstall() {
-        if AppInfo.neverUpdatesItself { return }  // never replace a local build with a release
+        if AppInfo.isDeveloperBuild { return }  // never replace the local dev build over itself
+        if AppInfo.isSourceBuild {
+            rebuildFromSource()
+            return
+        }
         guard let downloadURL else { return }
         // Pre-flight BEFORE spending the download: a translocated app or one
         // running from a read-only volume (the mounted DMG) can never be
@@ -431,6 +435,73 @@ final class UpdateService: ObservableObject {
         return values?.volumeIsReadOnly ?? true
     }
 
+    // MARK: - Updating a build made from source
+
+    /// Where the checkout that built this app lives. Written by the
+    /// checkout's own update script each time it installs, and kept out of
+    /// the registered defaults on purpose: it belongs to this Mac and must
+    /// not travel in a settings backup.
+    private static let sourceCheckoutKey = "sourceCheckoutPath"
+    private static let sourceUpdateScript = "Tools/update-from-source.sh"
+    private var sourceUpdateWatcher: Timer?
+
+    private static var sourceUpdateLogURL: URL? {
+        FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Logs/Vorssaint/update-from-source.log")
+    }
+
+    /// A build made from source carries changes no release has, so the
+    /// download would remove them. It updates by rebuilding instead: the
+    /// checkout's script moves the local changes onto the offered release,
+    /// tests, builds and installs the result, and reopens the app. The script
+    /// replaces this app while it runs, so only a failure ever returns here.
+    private func rebuildFromSource() {
+        guard case let .available(version) = state else { return }
+        let checkout = UserDefaults.standard.string(forKey: Self.sourceCheckoutKey) ?? ""
+        let script = (checkout as NSString).appendingPathComponent(Self.sourceUpdateScript)
+        guard !checkout.isEmpty, FileManager.default.isExecutableFile(atPath: script),
+              let log = Self.sourceUpdateLogURL
+        else {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "This copy of Vorssaint was built from source"
+            alert.informativeText = "It updates by rebuilding, and the folder it was built from "
+                + "could not be found. Run \(Self.sourceUpdateScript) in that folder once."
+            alert.runModal()
+            return
+        }
+        try? FileManager.default.createDirectory(at: log.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        // The child's stdio is /dev/null, so the shell sends it to the log.
+        guard let pid = try? DetachedProcess.spawn("/bin/zsh", [
+            "-c", "exec \"$1\" --from-app --tag \"v$2\" >\"$3\" 2>&1",
+            "vorssaint-source-update", script, version, log.path,
+        ]) else {
+            state = .failed(L10n.shared.s.updateInstallFailedBody)
+            return
+        }
+        state = .installing
+        sourceUpdateWatcher?.invalidate()
+        sourceUpdateWatcher = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] timer in
+            // Reaps the child as well: an exited child that nobody waited
+            // for would still look alive.
+            var status: Int32 = 0
+            guard waitpid(pid, &status, WNOHANG) != 0 else { return }
+            timer.invalidate()
+            guard let self else { return }
+            self.sourceUpdateWatcher = nil
+            // Still here means nothing was installed over this app: the
+            // script stopped before that, and said why in its log.
+            let succeeded = (status & 0x7f) == 0 && ((status >> 8) & 0xff) == 0
+            self.state = succeeded ? .upToDate : .available(version: version)
+            if !succeeded {
+                Notifier.post(title: L10n.shared.s.updateNotifyTitle,
+                              body: "The update could not be rebuilt with your changes. "
+                                  + "Details: \(log.path)")
+            }
+        }
+    }
+
     // MARK: - Install result
 
     /// Marker the installer script writes; read on the next launch so a swap
@@ -467,7 +538,7 @@ final class UpdateService: ObservableObject {
         let s = L10n.shared.s
         Notifier.post(title: s.updateNotifyTitle,
                       body: "\(s.updateInstallFailedBody) (\(code))")
-        if !AppInfo.neverUpdatesItself {
+        if !AppInfo.isDeveloperBuild {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.check(manual: false)
             }

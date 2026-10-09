@@ -28,9 +28,10 @@ enum AppInfo {
 
     /// True when this copy was built from source instead of released: its
     /// signature is not the release team's. A release installed over it would
-    /// silently take away whatever the source build added, so it is rebuilt
-    /// from the newer source (`Tools/update-from-source.sh`) instead of
-    /// updating itself. An answer the system cannot give counts as released.
+    /// silently take away whatever the source build added, so it updates by
+    /// rebuilding itself on the new release (`UpdateService.rebuildFromSource`)
+    /// instead of installing the download. An answer the system cannot give
+    /// counts as released.
     static let isSourceBuild: Bool = {
         var code: SecCode?
         var requirement: SecRequirement?
@@ -44,9 +45,6 @@ enum AppInfo {
     /// The same team the update installer checks a downloaded release against.
     private static let releaseRequirement =
         "anchor apple generic and certificate leaf[subject.OU] = \"3D485NHW29\""
-
-    /// Builds the in-app updater leaves alone.
-    static var neverUpdatesItself: Bool { isDeveloperBuild || isSourceBuild }
 
     /// True when the current version is a pre-release (e.g. 3.3.4-beta.1 or 3.3.4-rc.1).
     static var isBeta: Bool {
