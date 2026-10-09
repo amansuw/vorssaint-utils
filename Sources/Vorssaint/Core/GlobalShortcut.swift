@@ -993,6 +993,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         // Window layout keeps one shortcut per action instead of a role, so it
         // is the one holder of global keys the list above cannot reach.
         if seen.insert(.windowLayout).inserted { features.append(.windowLayout) }
+        // Macros keep one shortcut per macro inside their own list.
+        if seen.insert(.macros).inserted { features.append(.macros) }
         return features
     }
 

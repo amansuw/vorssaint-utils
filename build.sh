@@ -355,6 +355,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/FanControl/FanControlResumeSupport.swift
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift
+        Sources/Vorssaint/Services/Macros/MacroSupport.swift
+        Sources/Vorssaint/Core/MacroStrings.swift
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift
         Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift

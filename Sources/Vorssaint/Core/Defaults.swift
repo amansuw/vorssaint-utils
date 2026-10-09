@@ -931,6 +931,8 @@ enum DefaultsKey {
     static let panelControlNotch = "panelControlNotch"
 
     // Radial menu: a wheel of actions on a shortcut.
+    static let macrosEnabled = "macrosEnabled"
+    static let macros = "macros"                          // Data: [Macro] JSON
     static let radialMenuEnabled = "radialMenuEnabled"
     static let radialMenuShortcut = "radialMenuShortcut"
     static let radialMenuAtPointer = "radialMenuAtPointer" // false: screen center
@@ -1508,6 +1510,7 @@ enum Defaults {
         DefaultsKey.notchCommandBarStyle: NotchCommandBarStyle.droplet.rawValue,
         DefaultsKey.notchHideInCaptures: false,
         DefaultsKey.panelControlNotch: true,
+        DefaultsKey.macrosEnabled: false,
         DefaultsKey.radialMenuEnabled: false,
         DefaultsKey.radialMenuShortcut: GlobalShortcut.radialMenuDefault.storageValue,
         DefaultsKey.radialMenuAtPointer: true,

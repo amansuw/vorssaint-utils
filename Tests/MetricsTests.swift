@@ -123,6 +123,7 @@ struct MetricsTests {
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
                 KeyboardFeatureTests.run(suite)
+                MacroTests.run { suite.expect($0, $1) }
                 AssistiveKeyboardTests.run(suite)
                 ScreenshotToolShortcutTests.run(suite)
             }),

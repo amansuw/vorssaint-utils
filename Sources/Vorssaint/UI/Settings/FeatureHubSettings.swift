@@ -1057,6 +1057,7 @@ extension AppFeature {
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
+        case .macros: return FeatureStrings.macros(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
@@ -1141,6 +1142,7 @@ extension AppFeature {
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).hubDescription
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
+        case .macros: return FeatureStrings.macros(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode

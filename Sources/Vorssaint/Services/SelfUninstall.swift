@@ -169,6 +169,7 @@ enum SelfUninstall {
         MiddleClickService.shared.suspend()
         QuitProtectionService.shared.suspend()
         PastePlainService.shared.suspend()
+        MacroService.shared.suspend()
         SnippetLibraryService.shared.suspend()
         TextSnippetService.shared.suspend()
         ScreenCaptureService.shared.suspend()
