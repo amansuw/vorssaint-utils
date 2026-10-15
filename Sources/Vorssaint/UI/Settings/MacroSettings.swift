@@ -270,14 +270,15 @@ private struct MacroEditor: View {
                         Text(text.title(speed)).tag(speed)
                     }
                 }
-                Stepper(value: $macro.repeatCount, in: MacroSupport.repeatRange) {
-                    HStack {
-                        Text(text.repeatLabel)
-                        Spacer()
+                // A Spacer in a label here takes the whole width from the
+                // controls column, so the count sits beside the arrows.
+                LabeledContent(text.repeatLabel) {
+                    Stepper(value: $macro.repeatCount, in: MacroSupport.repeatRange) {
                         Text("\(macro.repeatCount)×")
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
+                    .accessibilityLabel(text.repeatLabel)
                 }
             }
             .formStyle(.columns)
