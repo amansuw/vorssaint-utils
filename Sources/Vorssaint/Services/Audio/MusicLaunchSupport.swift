@@ -29,6 +29,14 @@ enum MusicLaunchSupport {
     static let replacementSettleDelay: TimeInterval = 1
     static let playbackAttempts = 3
 
+    /// The app chosen for media keys, else the player the island opens when
+    /// nothing is playing, so one choice answers both the cover and the keys.
+    static func replacementURL(in defaults: UserDefaults = .standard) -> URL? {
+        let path = defaults.string(forKey: DefaultsKey.musicBlockReplacementPath) ?? ""
+        guard path.isEmpty else { return URL(fileURLWithPath: path) }
+        return NotchPreferredPlayer.chosenURL(in: defaults)
+    }
+
     /// True for the key-down of a media key that would otherwise open the
     /// music app. Releases, auto-repeat and volume or brightness keys do not
     /// count, so those never arm the blocker.

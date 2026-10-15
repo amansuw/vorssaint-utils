@@ -3,6 +3,7 @@
 
 import SwiftUI
 import EventKit
+import UniformTypeIdentifiers
 
 struct NotchSettings: View {
     @ObservedObject private var l10n = L10n.shared
@@ -383,6 +384,20 @@ struct NotchSettings: View {
         ![.mixer, .system, .tools].contains(module)
     }
 
+    /// Any app can be the player, including one the music-app scan cannot
+    /// recognise because it does not call itself a music app.
+    private func choosePreferredPlayer() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url,
+              let id = Bundle(url: url)?.bundleIdentifier, id.utf8.count <= 256 else { return }
+        preferredPlayer = id
+    }
+
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
         case .controls:
@@ -415,13 +430,16 @@ struct NotchSettings: View {
             switchRow("music.note", text.playingMusic, isOn: $showPlayingMusic)
             switchRow("play.rectangle", music.includeOtherPlayers, isOn: $includeOtherPlayers)
             SettingsRow(symbol: "arrow.up.forward.app", title: music.preferredPlayer, caption: music.preferredPlayerHint) {
-                Picker(music.preferredPlayer, selection: $preferredPlayer) {
-                    Text(music.automaticSource).tag(NotchPreferredPlayer.automatic)
-                    ForEach(NotchPreferredPlayer.choices(in: preferredPlayers ?? [], including: preferredPlayer), id: \.bundleID) { app in
-                        Text(app.name).tag(app.bundleID)
+                HStack(spacing: 8) {
+                    Picker(music.preferredPlayer, selection: $preferredPlayer) {
+                        Text(music.automaticSource).tag(NotchPreferredPlayer.automatic)
+                        ForEach(NotchPreferredPlayer.choices(in: preferredPlayers ?? [], including: preferredPlayer), id: \.bundleID) { app in
+                            Text(app.name).tag(app.bundleID)
+                        }
                     }
+                    .labelsHidden()
+                    Button(l10n.s.musicBlockChooseApp) { choosePreferredPlayer() }
                 }
-                .labelsHidden()
             }
             .task {
                 guard let choices = await NotchPreferredPlayer.loadInstalled(), !Task.isCancelled else { return }

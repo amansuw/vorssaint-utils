@@ -124,9 +124,7 @@ final class MusicLaunchBlocker: ObservableObject {
         guard now - lastReplacementLaunch > 1.0 else { return }
         lastReplacementLaunch = now
 
-        let path = UserDefaults.standard.string(forKey: DefaultsKey.musicBlockReplacementPath) ?? ""
-        guard !path.isEmpty else { return }
-        let url = URL(fileURLWithPath: path)
+        guard let url = MusicLaunchSupport.replacementURL() else { return }
         // The replacement must never be the app being blocked, or the two
         // settings would chase each other in a launch-and-kill loop.
         guard let replacementID = Bundle(url: url)?.bundleIdentifier,

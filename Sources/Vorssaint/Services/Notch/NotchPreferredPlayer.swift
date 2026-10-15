@@ -39,10 +39,21 @@ enum NotchPreferredPlayer {
     typealias Choice = (bundleID: String, name: String)
 
     /// The installed choices are a snapshot. A saved choice stays available
-    /// before the scan finishes, or when its app is no longer installed.
+    /// before the scan finishes, when its app is no longer installed, or when
+    /// it was picked by hand and does not say it plays music (Feishin and
+    /// other web-based players call themselves developer tools).
     static func choices(in installed: [Choice], including chosen: String) -> [Choice] {
         guard !chosen.isEmpty, !installed.contains(where: { $0.bundleID == chosen }) else { return installed }
-        return installed + [(chosen, chosen)]
+        return installed + [(chosen, InstalledApps.name(for: chosen))]
+    }
+
+    /// The app picked in Settings, never the automatic order: media keys
+    /// open it in place of the blocked music app when they name none of
+    /// their own.
+    static func chosenURL(in defaults: UserDefaults = .standard) -> URL? {
+        let id = choice(in: defaults)
+        guard !id.isEmpty, let url = InstalledApps.url(for: id), Bundle(url: url)?.bundleIdentifier == id else { return nil }
+        return url
     }
 
     /// Scan away from the view's main thread. A task that left the screen

@@ -233,6 +233,8 @@ private struct MusicBlockingSettings: View {
     @AppStorage(DefaultsKey.musicBlockEnabled) private var enabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var replacementPath = ""
     @AppStorage(DefaultsKey.musicBlockPlayReplacement) private var playReplacement = true
+    /// Read so the fallback shown here follows a change made in the island's settings.
+    @AppStorage(DefaultsKey.notchPreferredPlayer) private var preferredPlayer = NotchPreferredPlayer.automatic
 
     var body: some View {
         SettingsCard(title: l10n.s.musicBlockSection) {
@@ -274,7 +276,7 @@ private struct MusicBlockingSettings: View {
                     }
                 }
                 .padding(.leading, settingsRowTextInset)
-                if !replacementPath.isEmpty {
+                if replacementURL != nil {
                     Toggle(l10n.s.musicBlockPlayReplacement, isOn: $playReplacement)
                         .padding(.leading, settingsRowTextInset)
                 }
@@ -289,9 +291,18 @@ private struct MusicBlockingSettings: View {
         }
     }
 
+    /// With none chosen here, the player chosen for the island opens instead.
+    private var replacementURL: URL? {
+        _ = preferredPlayer
+        guard let url = MusicLaunchSupport.replacementURL(),
+              let id = Bundle(url: url)?.bundleIdentifier,
+              !MusicLaunchBlocker.blockedBundleIDs.contains(id) else { return nil }
+        return url
+    }
+
     private var replacementName: String {
-        guard !replacementPath.isEmpty else { return l10n.s.musicBlockReplacementNone }
-        let name = FileManager.default.displayName(atPath: replacementPath)
+        guard let url = replacementURL else { return l10n.s.musicBlockReplacementNone }
+        let name = FileManager.default.displayName(atPath: url.path)
         return (name as NSString).deletingPathExtension
     }
 

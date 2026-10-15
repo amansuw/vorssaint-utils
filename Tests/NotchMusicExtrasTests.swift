@@ -69,6 +69,25 @@ enum NotchMusicExtrasTests {
         suite.expect(Player.choices(in: [], including: other).map(\.bundleID) == [other]
                      && Player.choices(in: installed, including: other).map(\.bundleID) == [spotify, music, other],
                      "the current choice stays listed before loading and when absent from the installed snapshot")
+
+        // Finder stands in for a player picked by hand: it is always installed
+        // and does not call itself a music app.
+        let finder = "com.apple.finder"
+        suite.expect(Player.chosenURL(in: defaults) == nil && MusicLaunchSupport.replacementURL(in: defaults) == nil,
+                     "an implausible choice gives media keys nothing to open")
+        defaults.set(finder, forKey: DefaultsKey.notchPreferredPlayer)
+        suite.expect(Player.chosenURL(in: defaults).flatMap { Bundle(url: $0)?.bundleIdentifier } == finder
+                     && MusicLaunchSupport.replacementURL(in: defaults) == Player.chosenURL(in: defaults),
+                     "with no app of their own, media keys open the player chosen for the island")
+        defaults.set("/Applications/Example Player.app", forKey: DefaultsKey.musicBlockReplacementPath)
+        suite.expect(MusicLaunchSupport.replacementURL(in: defaults)?.path == "/Applications/Example Player.app",
+                     "an app chosen for media keys wins over the island's player")
+        defaults.removeObject(forKey: DefaultsKey.musicBlockReplacementPath)
+        defaults.set(Player.automatic, forKey: DefaultsKey.notchPreferredPlayer)
+        suite.expect(Player.chosenURL(in: defaults) == nil && MusicLaunchSupport.replacementURL(in: defaults) == nil,
+                     "the automatic order never makes media keys open an app")
+        defaults.set("org.example.NotInstalled", forKey: DefaultsKey.notchPreferredPlayer)
+        suite.expect(Player.chosenURL(in: defaults) == nil, "a chosen player that is no longer installed opens nothing")
     }
 
     private final class ScanSignal: @unchecked Sendable {
